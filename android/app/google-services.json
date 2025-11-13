@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "924546758982",
+    "project_id": "fir-cloud-messaging-65115",
+    "storage_bucket": "fir-cloud-messaging-65115.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:924546758982:android:ae02ceea45b2194fff4d47",
+        "android_client_info": {
+          "package_name": "com.example.ica17"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeAxz6XFz-Q0OFudEWAktVul3NEJc3bpg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
