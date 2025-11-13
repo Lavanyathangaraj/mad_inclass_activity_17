@@ -1,129 +1,164 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'firebase_options.dart';
 
-/// BACKGROUND MESSAGE HANDLER
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  print("Background Message: ${message.notification?.body}");
+/// Background handler
+Future<void> backgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print("🔥 Background Message: ${message.data}");
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  FirebaseMessaging.onBackgroundMessage(backgroundHandler);
 
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  runApp(const MessagingTutorial());
+  runApp(const NotificationApp());
 }
 
-class MessagingTutorial extends StatelessWidget {
-  const MessagingTutorial({super.key});
+class NotificationApp extends StatelessWidget {
+  const NotificationApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: "Notification Types Demo",
+      home: const NotificationHome(title: "Cloud Messaging Notification"),
       debugShowCheckedModeBanner: false,
-      title: 'Firebase Messaging',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const MyHomePage(title: 'Firebase Messaging'),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
+class NotificationHome extends StatefulWidget {
   final String title;
 
-  const MyHomePage({super.key, required this.title});
+  const NotificationHome({super.key, required this.title});
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  State<NotificationHome> createState() => _NotificationHomeState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  late FirebaseMessaging messaging;
+class _NotificationHomeState extends State<NotificationHome> {
+  List<Map<String, dynamic>> notifications = [];
 
   @override
   void initState() {
     super.initState();
-
-    messaging = FirebaseMessaging.instance;
-
-    _requestNotificationPermission();
-    _initializeFCM();
-    _listenToForegroundMessages();
-    _listenToNotificationClick();
+    requestPermissions();
+    listenToNotifications();
   }
 
-  // 🔹 Request Notification Permission (important for Android 13+ & iOS)
-  void _requestNotificationPermission() async {
-    NotificationSettings settings =
-        await FirebaseMessaging.instance.requestPermission(
+  void requestPermissions() async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    await messaging.requestPermission(
       alert: true,
-      sound: true,
       badge: true,
+      sound: true,
     );
 
-    print("User Permission Status: ${settings.authorizationStatus}");
-  }
-
-  // 🔹 Get Token + Subscribe to topic
-  void _initializeFCM() async {
-    messaging.subscribeToTopic("messaging");
-
+    // Get device token
     String? token = await messaging.getToken();
     print("FCM Token: $token");
   }
 
-  // 🔹 Handle messages while the app is OPEN
-  void _listenToForegroundMessages() {
-    FirebaseMessaging.onMessage.listen((RemoteMessage event) {
-      print("Message Received: ${event.notification?.body}");
-      print("Data: ${event.data}");
+  void listenToNotifications() {
+    // Foreground messages
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      addNotification(message);
+    });
 
-      if (event.notification?.body != null) {
-        _showAlert(event.notification!.title ?? "Notification",
-            event.notification!.body!);
+    // Notification click (from background)
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      addNotification(message);
+    });
+
+    // Terminated state
+    FirebaseMessaging.instance.getInitialMessage().then((message) {
+      if (message != null) {
+        addNotification(message);
       }
     });
   }
 
-  // 🔹 Listen when notification is clicked
-  void _listenToNotificationClick() {
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print("Notification Clicked!");
-      _showAlert("Notification Clicked",
-          message.notification?.body ?? "Opened the notification");
+  void addNotification(RemoteMessage message) {
+    final type = message.data["type"] ?? "regular";
+
+    setState(() {
+      notifications.insert(0, {
+        "title": message.notification?.title ?? "No Title",
+        "body": message.notification?.body ?? "No Body",
+        "type": type,
+        "category": message.data["category"] ?? "unknown",
+      });
     });
   }
 
-  // 🔹 Show Dialog Alert
-  void _showAlert(String title, String content) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(), child: const Text("OK"))
-        ],
-      ),
-    );
+  Color getColor(String type) {
+    switch (type) {
+      case "important":
+        return Colors.red.shade300;
+      case "wisdom":
+        return Colors.blue.shade300;
+      case "regular":
+      default:
+        return Colors.green.shade300;
+    }
   }
 
-  // 🔹 UI
+  IconData getIcon(String type) {
+    switch (type) {
+      case "important":
+        return Icons.warning_amber_rounded;
+      case "wisdom":
+        return Icons.auto_stories;
+      case "regular":
+      default:
+        return Icons.lightbulb;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      body: const Center(child: Text("Messaging Tutorial")),
+      appBar: AppBar(
+        title: Text(widget.title),
+        backgroundColor: Colors.deepPurple,
+      ),
+      body: notifications.isEmpty
+          ? const Center(
+              child: Text(
+                "No notifications received yet",
+                style: TextStyle(fontSize: 18),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: notifications.length,
+              itemBuilder: (context, index) {
+                final n = notifications[index];
+                return Card(
+                  color: getColor(n["type"]),
+                  child: ListTile(
+                    leading: Icon(
+                      getIcon(n["type"]),
+                      size: 32,
+                    ),
+                    title: Text(
+                      n["title"],
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(n["body"]),
+                    trailing: Text(
+                      n["type"].toUpperCase(),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
